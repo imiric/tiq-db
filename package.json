@@ -1,0 +1,32 @@
+{
+  "name": "tiq-db",
+  "version": "0.0.0",
+  "description": "Database storage plugin for tiq",
+  "main": "index.js",
+  "scripts": {
+    "test": "node_modules/.bin/mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/imiric/tiq-db"
+  },
+  "keywords": [
+    "tiq",
+    "plugin",
+    "database",
+    "sqlite",
+    "postgres",
+    "mysql"
+  ],
+  "author": "Ivan Mirić <imiric@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/imiric/tiq-db/issues"
+  },
+  "dependencies": {
+    "lodash": "~2.4.1",
+    "bluebird": "~1.2.4",
+    "knex": "~0.5.14",
+    "mkdirp": "~0.5.0"
+  }
+}
