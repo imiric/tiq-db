@@ -65,8 +65,6 @@ TiqDB.prototype.enter = function() {
   if (this.config.client == 'sqlite3') {
     mkdirp.sync(path.dirname(this.config.connection.filename));
   }
-
-  this.schemaCreated = this.createSchema();
 }
 
 
@@ -87,7 +85,11 @@ TiqDB.prototype.createSchema = function() {
   var tiq = this,
       knex = Knex.knex;
 
-  return Promise.join(
+  if (typeof tiq.schemaCreated !== 'undefined') {
+    return tiq.schemaCreated;
+  }
+
+  var promise = Promise.join(
     knex.schema.hasTable('tags').then(function(exists) {
       if (!exists) {
         return knex.schema.createTable('tags', function(t) {
@@ -111,6 +113,9 @@ TiqDB.prototype.createSchema = function() {
       }
     })
   );
+
+  this.schemaCreated = promise;
+  return promise;
 }
 
 
@@ -154,7 +159,7 @@ TiqDB.prototype.associate = function(tokens, tags, ns) {
       knex = Knex.knex,
       allTags = _.uniq(tokens.concat(tags));
 
-  var promise = this.schemaCreated.then(function() {
+  var promise = this.createSchema().then(function() {
     // Couldn't figure out a way to use Bluebird's `bind()` to maintain scope
     // within the promise handler functions, so we use this poor-man's version.
     var scope = {};
@@ -273,7 +278,7 @@ TiqDB.prototype.describe = function(tokens, ns, cb) {
       knex = Knex.knex,
       tokens = _.uniq(tokens);
 
-  var promise = this.schemaCreated.then(function() {
+  var promise = this.createSchema().then(function() {
     /*
       We need individual selects for each token passed, so we can use intersect
       on them later. This could be simplified a lot and use a single query if
