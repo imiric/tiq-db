@@ -74,8 +74,9 @@ TiqDB.prototype.enter = function() {
  * Cleanup and close DB connection.
  */
 TiqDB.prototype.exit = function() {
-  // TODO: Wait for the connection pool to dry up before disconnecting.
-  Knex.knex.client.pool.destroy();
+  Promise.all(this.pendingOperations).then(function() {
+    Knex.knex.client.pool.destroy();
+  });
 }
 
 
@@ -114,6 +115,23 @@ TiqDB.prototype.createSchema = function() {
 
 
 /**
+ * Keep a record of a pending operation for process cleanup purposes.
+ *
+ * This is used to wait for any operations in process before tearing down
+ * the connection. Mainly for using the plugin in the CLI tool, and making
+ * sure the sync call to `.exit()` waits for everything to finish.
+ */
+TiqDB.prototype.holdOperation = function(promise) {
+  // To avoid memory leaks and still make this plugin usable in the CLI,
+  // let's just set a new array. To deal with multiple operations, we would
+  // need to add some sort of cleanup operation for stale (fulfilled) promises.
+  // This is assuming the CLI tool won't have any concurrent operations.
+  // This will probably need to be rethought in the near future.
+  this.pendingOperations = [promise];
+}
+
+
+/**
  * Associate a collection of tokens with a collection of tags.
  *
  * Practically, tags and tokens are the same thing (arbitrary text). We just
@@ -136,7 +154,7 @@ TiqDB.prototype.associate = function(tokens, tags, ns) {
       knex = Knex.knex,
       allTags = _.uniq(tokens.concat(tags));
 
-  return this.schemaCreated.then(function() {
+  var promise = this.schemaCreated.then(function() {
     // Couldn't figure out a way to use Bluebird's `bind()` to maintain scope
     // within the promise handler functions, so we use this poor-man's version.
     var scope = {};
@@ -231,6 +249,9 @@ TiqDB.prototype.associate = function(tokens, tags, ns) {
       }, trans.rollback);
     });
   });
+
+  this.holdOperation(promise);
+  return promise;
 }
 
 
@@ -252,7 +273,7 @@ TiqDB.prototype.describe = function(tokens, ns, cb) {
       knex = Knex.knex,
       tokens = _.uniq(tokens);
 
-  return this.schemaCreated.then(function() {
+  var promise = this.schemaCreated.then(function() {
     /*
       We need individual selects for each token passed, so we can use intersect
       on them later. This could be simplified a lot and use a single query if
@@ -300,4 +321,7 @@ TiqDB.prototype.describe = function(tokens, ns, cb) {
       .select('text')
       .whereIn('id', ids).pluck('text');
   });
+
+  this.holdOperation(promise);
+  return promise;
 }
