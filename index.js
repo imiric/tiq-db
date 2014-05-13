@@ -315,8 +315,8 @@ TiqDB.prototype.describe = function(tokens, ns, cb) {
     }
 
     // Only IDs that exist in *all* results
-    return _.intersection.apply(this, allIds);
-  }).then(function(ids) {
+    var ids = _.intersection.apply(this, allIds);
+
     return knex('tags')
       .select('text')
       .whereIn('id', ids).pluck('text');
