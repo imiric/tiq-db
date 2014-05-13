@@ -76,6 +76,24 @@ describe('TiqDB#associate', function() {
       })
     );
   })
+
+  it('should not create duplicate associations if tags are passed in reverse', function(done) {
+    return Promise.join(
+      tiq.associate(['john'], ['hello']),
+      tiq.associate(['hello'], ['john']),
+      knex('tags').select('text').pluck('text').then(function(tags) {
+        tags.should.deep.equal(['john', 'hello']);
+        return knex('tags_associations');
+      }).then(function(assocs) {
+        var ids = [];
+        _.each(assocs, function(a) {
+          ids.push(_.values(a));
+        });
+        ids.should.deep.equal([[2, 1]]);
+        done();
+      })
+    );
+  })
 });
 
 describe('TiqJSON#describe', function() {

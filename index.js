@@ -137,6 +137,19 @@ TiqDB.prototype.holdOperation = function(promise) {
 
 
 /**
+ * Check if two arrays are either equal or palindromes, i.e. their elements
+ * match even if one is reversed.
+ *
+ * @param {Array} arr1
+ * @param {Array} arr2
+ * @returns {Boolean} - Whether the arrays are equal or not.
+ */
+TiqDB.prototype.equalArrays = function(arr1, arr2) {
+  return _.isEqual(arr1, arr2) || _.isEqual(arr1, arr2.reverse());
+}
+
+
+/**
  * Associate a collection of tokens with a collection of tags.
  *
  * Practically, tags and tokens are the same thing (arbitrary text). We just
@@ -219,9 +232,10 @@ TiqDB.prototype.associate = function(tokens, tags, ns) {
 
         // Include only missing associations, to not trip the unique DB constraint
         scope.missingAssocs = _.filter(associations, function(assoc) {
-          var notExists = true;
+          var notExists = true,
+              assocValues = _.values(assoc);
           for (var i=0; i < existingAssocs.length; i++) {
-            if (_.isEqual(assoc, existingAssocs[i])) {
+            if (tiq.equalArrays(assocValues, _.values(existingAssocs[i]))) {
               notExists = false;
               break;
             }
