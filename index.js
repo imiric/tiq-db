@@ -137,52 +137,48 @@ TiqDB.prototype.associate = function(tokens, tags, ns) {
       allTags = _.uniq(tokens.concat(tags));
 
   return this.schemaCreated.then(function() {
+    // Couldn't figure out a way to use Bluebird's `bind()` to maintain scope
+    // within the promise handler functions, so we use this poor-man's version.
+    var scope = {};
     return knex.transaction(function(trans) {
+      // Fetch existing tags
       knex('tags').transacting(trans)
       .select('id', 'text').whereIn('text', allTags).andWhere('namespace', ns)
       .then(function(existingTags) {
+        scope.existingTags = existingTags;
         // Create missing tags
-        var missing = _.xor(allTags, _.pluck(existingTags, 'text'));
-        if (missing.length) {
-          return knex('tags').transacting(trans).insert(
-            _.map(missing, function(t) {
-              var now = new Date();
+        scope.missingTagsRaw = _.xor(allTags, _.pluck(existingTags, 'text'));
+        if (scope.missingTagsRaw.length) {
+          var now = new Date();
+          var tagObjs = _.map(
+            scope.missingTagsRaw, function(t) {
               return {text: t, namespace: ns,
                       created_at: now, updated_at: now}
-            })
-          ).then(function(inserted) {
-            /*
-              `inserted` behaves differently depending on the client
-              (see http://knexjs.org/#Builder-insert), so we'll forget about it
-              and run another query. We need multiple columns anyway, so the
-              Postgres optimization doesn't help here.
-            */
-            trans.commit();
-            return knex('tags').transacting(trans)
-                    .select('id', 'text')
-                    .whereIn('text', missing).andWhere('namespace', ns)
-                    .then(function(newTags) {
-                      return existingTags.concat(newTags);
-                    });
-          });
-        } else {
-          return existingTags;
+            }
+          );
+          return knex('tags').transacting(trans).insert(tagObjs);
         }
-      }).then(function(fetchedTags) {
-        var tagIds = _.pluck(fetchedTags, 'id');
-        // All existing associations are needed for insertion checks later
-        return [
-          fetchedTags,
-          knex('tags_associations').transacting(trans)
-            .select('tag_id1', 'tag_id2').whereIn('tag_id1', tagIds)
-        ];
-      }).spread(function(fetchedTags, existingAssocs) {
+      }).then(function(inserted) {
+        // `inserted` is of not much use here, since it returns different things
+        // depending on the client (see http://knexjs.org/#Builder-insert),
+        // so we avoid using it and just run another query to get the newly
+        // created tags.
+        return knex('tags').transacting(trans)
+          .select('id', 'text')
+          .whereIn('text', scope.missingTagsRaw).andWhere('namespace', ns);
+      }).then(function(missingTags) {
+        scope.fetchedTags = scope.existingTags.concat(missingTags);
+        // Fetch existing associations
+        var tagIds = _.pluck(scope.fetchedTags, 'id');
+        return knex('tags_associations').transacting(trans)
+          .select('tag_id1', 'tag_id2').whereIn('tag_id1', tagIds);
+      }).then(function(existingAssocs) {
         var associations = [],
             tokenIds = [],
             tagIds = [];
 
-        // Extract all IDs
-        _.forOwn(fetchedTags, function(tag) {
+        // Extract all tag IDs
+        _.forOwn(scope.fetchedTags, function(tag) {
           if (_.contains(tags, tag.text)) {
             tagIds.push(tag.id);
           } else {
@@ -199,7 +195,7 @@ TiqDB.prototype.associate = function(tokens, tags, ns) {
         });
 
         // Include only missing associations, to not trip the unique DB constraint
-        var missingAssocs = _.filter(associations, function(assoc) {
+        scope.missingAssocs = _.filter(associations, function(assoc) {
           var notExists = true;
           for (var i=0; i < existingAssocs.length; i++) {
             if (_.isEqual(assoc, existingAssocs[i])) {
@@ -210,27 +206,29 @@ TiqDB.prototype.associate = function(tokens, tags, ns) {
           return notExists;
         });
 
-        if (missingAssocs.length) {
+        if (scope.missingAssocs.length) {
           // Create the missing associations
-          return knex('tags_associations').transacting(trans).insert(missingAssocs)
-              .then(function() {
-                // Increment the association count for each tag
-                var tagIds = _.uniq(
-                  _.pluck(missingAssocs, 'tag_id1').concat(_.pluck(missingAssocs, 'tag_id2'))
-                );
-                return knex('tags').transacting(trans)
-                  .whereIn('id', tagIds)
-                  .update({
-                    'updated_at': new Date(),
-                    'count': knex.raw('count + 1')
-                  });
-              });
+          return knex('tags_associations').transacting(trans)
+            .insert(scope.missingAssocs);
         }
+      }).then(function(inserted) {
+        // Increment the association count for each tag
+        var tagIds = _.uniq(
+          _.pluck(scope.missingAssocs, 'tag_id1').concat(
+            _.pluck(scope.missingAssocs, 'tag_id2')
+          )
+        );
+        return knex('tags').transacting(trans)
+          .whereIn('id', tagIds)
+          .update({
+            'updated_at': new Date(),
+            'count': knex.raw('count + 1')
+          });
       }).then(function() {
         if (trans.connection) {
           trans.commit();
         }
-      });
+      }, trans.rollback);
     });
   });
 }
