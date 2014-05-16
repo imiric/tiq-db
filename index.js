@@ -279,10 +279,9 @@ TiqDB.prototype.associate = function(tokens, tags, ns) {
  *
  * @param {Array.<string>} tokens
  * @param {string} [ns='public'] - Namespace used for all tags and tokens.
- * @param {Object} [data={}]
  * @returns {Array} - Collection of associated tags.
  */
-TiqDB.prototype.describe = function(tokens, ns, cb) {
+TiqDB.prototype.describe = function(tokens, ns) {
   if (!tokens.length) {
     return;
   }
