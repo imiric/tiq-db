@@ -132,3 +132,34 @@ describe('TiqJSON#describe', function() {
     })
   })
 });
+
+describe('TiqJSON#search', function() {
+  beforeEach(function() {
+    return knex('tags').insert([
+      {text: 'http://duckduckgo.com/', namespace: 'public'},
+      {text: 'http://ducksrus.com/',   namespace: 'public'},
+      {text: 'introDUCKtion',          namespace: 'public'},
+      {text: 'I am a cat',             namespace: 'public'},
+      {text: 'The Mighty Ducks',       namespace: 'private'},
+      {text: 'I am a cat too... not!', namespace: 'private'},
+    ]);
+  })
+
+  it('should return tags matching the text', function(done) {
+    return tiq.search('duck').then(function(tags) {
+      tags.should.deep.equal([
+        'http://duckduckgo.com/',
+        'http://ducksrus.com/',
+        'introDUCKtion'
+      ]);
+      done();
+    })
+  })
+
+  it('should return tags matching the text using namespaces', function(done) {
+    return tiq.search('CAT', 'private').then(function(tags) {
+      tags.should.deep.equal(['I am a cat too... not!']);
+      done();
+    })
+  })
+});

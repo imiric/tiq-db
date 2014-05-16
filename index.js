@@ -279,7 +279,7 @@ TiqDB.prototype.associate = function(tokens, tags, ns) {
  *
  * @param {Array.<string>} tokens
  * @param {string} [ns='public'] - Namespace used for all tags and tokens.
- * @returns {Array} - Collection of associated tags.
+ * @returns {Array.<string>} - Collection of associated tags.
  */
 TiqDB.prototype.describe = function(tokens, ns) {
   if (!tokens.length) {
@@ -338,6 +338,33 @@ TiqDB.prototype.describe = function(tokens, ns) {
     return knex('tags')
       .select('text')
       .whereIn('id', ids).pluck('text');
+  });
+
+  this.holdOperation(promise);
+  return promise;
+}
+
+
+/**
+ * Search for tags matching the text.
+ *
+ * @param {string} text
+ * @param {string} [ns='public'] - Namespace to search in.
+ * @returns {Array.<string>} - Collection of matching tags.
+ */
+TiqDB.prototype.search = function(text, ns) {
+  if (!text) {
+    return;
+  }
+
+  ns = ns || 'public';
+  var tiq = this,
+      knex = Knex.knex;
+
+  var promise = this.createSchema().then(function() {
+    return knex('tags').select('text')
+      .where('text', 'like', '%' + text + '%').andWhere('namespace', ns)
+      .pluck('text');
   });
 
   this.holdOperation(promise);
