@@ -1,6 +1,6 @@
 {
   "name": "tiq-db",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Database storage plugin for tiq",
   "main": "index.js",
   "scripts": {
