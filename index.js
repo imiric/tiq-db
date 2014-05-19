@@ -199,6 +199,9 @@ TiqDB.prototype.associate = function(tokens, tags, ns) {
         // depending on the client (see http://knexjs.org/#Builder-insert),
         // so we avoid using it and just run another query to get the newly
         // created tags.
+        if (!scope.missingTagsRaw.length) {
+          return [];
+        }
         return knex('tags').transacting(trans)
           .select('id', 'text')
           .whereIn('text', scope.missingTagsRaw).andWhere('namespace', ns);
@@ -255,6 +258,9 @@ TiqDB.prototype.associate = function(tokens, tags, ns) {
             _.pluck(scope.missingAssocs, 'tag_id2')
           )
         );
+        if (!tagIds.length) {
+          return;
+        }
         return knex('tags').transacting(trans)
           .whereIn('id', tagIds)
           .update({
@@ -334,6 +340,10 @@ TiqDB.prototype.describe = function(tokens, ns) {
 
     // Only IDs that exist in *all* results
     var ids = _.intersection.apply(this, allIds);
+
+    if (!ids.length) {
+      return ids;
+    }
 
     return knex('tags')
       .select('text')
